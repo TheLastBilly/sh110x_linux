@@ -190,7 +190,7 @@ static const struct of_device_id i2c_sh110x_of_match[] = {
 MODULE_DEVICE_TABLE(of, i2c_sh110x_of_match);
 
 // probed entry point
-static int i2c_sh110x_probe(struct i2c_client *client, const struct i2c_device_id *id) {
+static int i2c_sh110x_probe(struct i2c_client *client) {
     int ret;
     u8 brightness;
     bool screen_inverted;
@@ -241,7 +241,7 @@ static int i2c_sh110x_probe(struct i2c_client *client, const struct i2c_device_i
     return 0;
 }
 
-static int i2c_sh110x_remove(struct i2c_client *client)
+static void i2c_sh110x_remove(struct i2c_client *client)
 {
     struct sh110x_data *sh110x = i2c_get_clientdata(client);
 
@@ -252,8 +252,6 @@ static int i2c_sh110x_remove(struct i2c_client *client)
 
     // display off
     i2c_sh110x_write(client, true, 0xAE);
-
-    return 0;
 }
 
 static const struct i2c_device_id i2c_sh110x_id[] = {

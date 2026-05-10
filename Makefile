@@ -2,7 +2,7 @@
 ifneq ($(KERNELRELEASE),)
 
 	# object files to build
-	obj-m += i2c-sh110x.o
+	obj-m += src/i2c-sh110x.o
 
 else
 

@@ -22,13 +22,21 @@
 #define MAX_LINES              ((SH1107_MAX_COL+1)/(SH110X_FONT_HEIGHT+1))
 
 struct sh110x_data {
-    struct bin_attribute bin;
     struct device *dev;
     struct i2c_client *client;
+    struct device_attribute * text;
 
     uint8_t line_num;
     uint8_t cursor_pos;
 };
+
+static ssize_t store_text(struct device *dev, struct device_attribute *attr,
+                        const char *buf, size_t count)
+{
+    return sh110x_write_text(dev, buf, count);
+}
+
+static DEVICE_ATTR(text, S_IWUSR, NULL, store_text);
 
 /*
 ** Array Variable to store the letters.
@@ -163,20 +171,19 @@ static int sh1107_display_init(struct i2c_client *client) {
     return 0;
 }
 
-static ssize_t i2c_sh110x_bin_write(struct file *filp, struct kobject *kobj,
-        struct bin_attribute *attr, char *buf, loff_t off, size_t count)
+static ssize_t sh110x_write_text(struct device * dev, char *buf, loff_t off, size_t count)
 {
     struct sh110x_data *sh110x;
-    int i;
+    int i = 0;
 
-    sh110x = dev_get_drvdata(kobj_to_dev(kobj));
+    sh110x = dev_get_drvdata(dev);
 
     if (count == 1 && buf[0] == ' ') {
         i2c_sh110x_fill(sh110x->client, 0x00);
         return count;
     }
 
-    for(i = off; i < count; i++) {
+    for(i = 0; i < count; i++) {
         i2c_sh1107_print_char(sh110x->client, buf[i]);
     }
 
@@ -227,25 +234,22 @@ static int i2c_sh110x_probe(struct i2c_client *client) {
     if (screen_inverted)
         i2c_sh110x_write(client, true, 0xa7);
 
-    // create a sysfs file to write/read the data
-    sysfs_bin_attr_init(&sh110x->bin);
-    sh110x->bin.attr.name = "screen_content";
-    sh110x->bin.attr.mode = S_IWUSR;
-    sh110x->bin.write = i2c_sh110x_bin_write;
-    sh110x->bin.size = 0;
-
-    ret = sysfs_create_bin_file(&client->dev.kobj, &sh110x->bin);
-    if (ret)
-        return ret;
-
-    return 0;
+    rc = device_create_file(&client->dev, &dev_attr_text);
+    if (rc != 0)
+    {
+        dev_info(&client->dev, "Failed to create \"text\" sysfs file (%d)", rc);
+        return rc;
+    }
+    sh110x->text = &dev_attr_text;
+    
+    return rc;
 }
 
 static void i2c_sh110x_remove(struct i2c_client *client)
 {
     struct sh110x_data *sh110x = i2c_get_clientdata(client);
 
-    sysfs_remove_bin_file(&client->dev.kobj, &sh110x->bin);
+    device_remove_file(&client->dev, &dev_attr_text);
 
     i2c_sh1107_set_cursor(client, 0, 0);
     i2c_sh110x_fill(client, 0x00);

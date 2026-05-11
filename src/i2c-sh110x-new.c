@@ -288,124 +288,6 @@ static int sh1107_set_address_start_line(struct i2c_client *client, uint8_t line
     return 0;
 }
 
-static int sh1107_set_data(struct i2c_client *client, uint8_t data)
-{
-    uint8_t buf[2] = {0x00};
-
-    if (client == NULL) {
-        return -EINVAL;
-    }
-
-    buf[0] = 0x40;
-    buf[1] = data;
-    int rc = 0;
-    ssize_t s = 0;
-    s = i2c_master_send(client, buf, 2);
-    if (s != (sizeof(buf)/sizeof(buf[0]))) {
-        rc = -1;
-    }
-
-    return rc;
-}
-
-static int init_display(struct i2c_client *client)
-{
-    if (client == NULL) {
-        return -EINVAL;
-    }
-
-    ssize_t rc = 0;
-    do {
-        rc = sh1107_set_display_on_off(client, false);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_frequency_divide(client, 0x0f, 1);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_addressing_mode(client, false);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_contrast(client, 0x5f);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_dc_dc_control(client, 0);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_adc(client, false);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_output_scan_direction(client, false);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_address_start_line(client, 0x00);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_display_offset(client, 0x00);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_charge_duration(client, 0x02, 0x02);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_vcom(client, 0x35);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_multiplex_ration(client, 0x7F);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_entire_display_on_off(client, false);
-        if (rc != 0) {
-            break;
-        }
-        rc = sh1107_set_display_on_off(client, false);
-        if (rc != 0) {
-            break;
-        }
-    } while(false);
-
-    return rc;
-}
-
-static int blank_screen(struct i2c_client *client, uint8_t pattern)
-{
-    int rc = 0;
-
-    rc = sh1107_set_addressing_mode(client, true);
-    if (rc == 0) {
-        rc = sh1107_set_column_address(client, 0);
-        if (rc == 0) {
-            rc = sh1107_set_page_address(client, 0);
-            if (rc == 0) {
-                for (uint8_t s = 0; s < DISPLAY_COLUMN_MAX; s++) {
-                    sh1107_set_column_address(client, s);
-                    for (uint16_t i = 0; i < DISPLAY_PAGE_MAX; i++) {
-                        sh1107_set_data(client, pattern);
-                    }
-                }
-            }
-        }
-    }
-
-    return rc;
-}
-
-static const struct of_device_id sh1107_of_match[] = {
-    { .compatible = "sinowealth,sh110x" },
-    {}
-};
-MODULE_DEVICE_TABLE(of, sh1107_of_match);
-
 static int sh1107_set_cursor(struct i2c_client *client, uint16_t line_num, uint16_t cursor_pos)
 {
     struct sh1107_data *sh1107 = i2c_get_clientdata(client);
@@ -430,6 +312,117 @@ static int sh1107_set_cursor(struct i2c_client *client, uint16_t line_num, uint1
     
     return rc;
 }
+
+static int sh1107_set_data(struct i2c_client *client, uint8_t data)
+{
+    uint8_t buf[2] = {0x00};
+
+    if (client == NULL) {
+        return -EINVAL;
+    }
+
+    buf[0] = 0x40;
+    buf[1] = data;
+    int rc = 0;
+    ssize_t s = 0;
+    s = i2c_master_send(client, buf, 2);
+    if (s != (sizeof(buf)/sizeof(buf[0]))) {
+        rc = -1;
+    }
+
+    return rc;
+}
+
+static int blank_screen(struct i2c_client *client, uint8_t pattern)
+{
+    int rc = 0;
+
+    rc = sh1107_set_column_address(client, 0);
+    if (rc == 0) {
+        rc = sh1107_set_page_address(client, 0);
+        if (rc == 0) {
+            for (uint8_t s = 0; s < DISPLAY_COLUMN_MAX; s++) {
+                sh1107_set_column_address(client, s);
+                for (uint16_t i = 0; i < DISPLAY_PAGE_MAX; i++) {
+                    sh1107_set_data(client, pattern);
+                }
+            }
+        }
+    }
+
+    return rc;
+}
+
+static int init_display(struct i2c_client *client)
+{
+    if (client == NULL) {
+        return -EINVAL;
+    }
+
+    ssize_t rc = 0;
+    do {
+        rc = sh1107_set_display_on_off(client, false);
+        if (rc != 0) {
+            break;
+        }
+        rc = sh1107_set_addressing_mode(client, false);
+        if (rc != 0) {
+            break;
+        }
+        rc = sh1107_set_contrast(client, 0x2f);
+        if (rc != 0) {
+            break;
+        }
+        rc = sh1107_set_output_scan_direction(client, false);
+        if (rc != 0) {
+            break;
+        }
+        rc = sh1107_set_address_start_line(client, 0x00);
+        if (rc != 0) {
+            break;
+        }
+        rc = sh1107_set_display_offset(client, 0x00);
+        if (rc != 0) {
+            break;
+        }
+        rc = sh1107_set_charge_duration(client, 0x02, 0x02);
+        if (rc != 0) {
+            break;
+        }
+        rc = sh1107_set_vcom(client, 0x35);
+        if (rc != 0) {
+            break;
+        }
+        rc = sh1107_set_cursor(client, 0, 0);
+        if (rc != 0) {
+            break;
+        }
+        rc = sh1107_set_entire_display_on_off(client, false);
+        if (rc != 0) {
+            break;
+        }
+        rc = sh1107_set_normal_reverse(client, false);
+        if (rc != 0) {
+            break;
+        }
+        rc = sh1107_set_display_on_off(client, true);
+        if (rc != 0) {
+            break;
+        }
+    } while(false);
+
+    if (rc == 0) {
+        rc = blank_screen(client, 0x00);
+    }
+
+    return rc;
+}
+
+static const struct of_device_id sh1107_of_match[] = {
+    { .compatible = "sinowealth,sh110x" },
+    {}
+};
+MODULE_DEVICE_TABLE(of, sh1107_of_match);
 
 static void sh1107_print_char(struct i2c_client *client, unsigned char c) {
     struct sh1107_data *sh1107 = i2c_get_clientdata(client);
@@ -497,8 +490,6 @@ static int sh1107_probe(struct i2c_client *client) {
     sh1107->client = client;
     i2c_set_clientdata(client, sh1107);
 
-    dev_info(&client->dev, "Initializing %s on bus %s", client->name, client->adapter->name);
-
     rc = init_display(client);
     if (rc != 0) {
         dev_info(&client->dev, "Failed to initialize display %s on bus %s (%d)", client->name, client->adapter->name, rc);
@@ -512,6 +503,8 @@ static int sh1107_probe(struct i2c_client *client) {
         return rc;
     }
     sh1107->text = &dev_attr_text;
+
+    dev_info(&client->dev, "Done initializing screen %s on bus %s", client->name, client->adapter->name);
     
     return rc;
 }

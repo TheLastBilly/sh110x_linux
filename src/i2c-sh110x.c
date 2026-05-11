@@ -30,14 +30,6 @@ struct sh110x_data {
     uint8_t cursor_pos;
 };
 
-static ssize_t store_text(struct device *dev, struct device_attribute *attr,
-                        const char *buf, size_t count)
-{
-    return sh110x_write_text(dev, buf, count);
-}
-
-static DEVICE_ATTR(text, S_IWUSR, NULL, store_text);
-
 /*
 ** Array Variable to store the letters.
 */
@@ -171,7 +163,7 @@ static int sh1107_display_init(struct i2c_client *client) {
     return 0;
 }
 
-static ssize_t sh110x_write_text(struct device * dev, char *buf, loff_t off, size_t count)
+static ssize_t sh110x_write_text(struct device * dev, const char *buf, size_t count)
 {
     struct sh110x_data *sh110x;
     int i = 0;
@@ -190,6 +182,14 @@ static ssize_t sh110x_write_text(struct device * dev, char *buf, loff_t off, siz
     return count;
 }
 
+static ssize_t store_text(struct device *dev, struct device_attribute *attr,
+                        const char *buf, size_t count)
+{
+    return sh110x_write_text(dev, buf, count);
+}
+
+static DEVICE_ATTR(text, S_IWUSR, NULL, store_text);
+
 static const struct of_device_id i2c_sh110x_of_match[] = {
     { .compatible = "sinowealth,sh110x" },
     {}
@@ -198,7 +198,6 @@ MODULE_DEVICE_TABLE(of, i2c_sh110x_of_match);
 
 // probed entry point
 static int i2c_sh110x_probe(struct i2c_client *client) {
-    int ret;
     u8 brightness;
     bool screen_inverted;
     struct sh110x_data *sh110x;
@@ -234,7 +233,7 @@ static int i2c_sh110x_probe(struct i2c_client *client) {
     if (screen_inverted)
         i2c_sh110x_write(client, true, 0xa7);
 
-    rc = device_create_file(&client->dev, &dev_attr_text);
+    int rc = device_create_file(&client->dev, &dev_attr_text);
     if (rc != 0)
     {
         dev_info(&client->dev, "Failed to create \"text\" sysfs file (%d)", rc);
@@ -247,8 +246,6 @@ static int i2c_sh110x_probe(struct i2c_client *client) {
 
 static void i2c_sh110x_remove(struct i2c_client *client)
 {
-    struct sh110x_data *sh110x = i2c_get_clientdata(client);
-
     device_remove_file(&client->dev, &dev_attr_text);
 
     i2c_sh1107_set_cursor(client, 0, 0);

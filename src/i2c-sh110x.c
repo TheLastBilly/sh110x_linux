@@ -5,6 +5,8 @@
 #include <linux/sysfs.h>
 #include <linux/of_device.h>
 
+#include <linux/minmax.h>
+
 #include "font.h"
 
 #define UNUSED(x) (void)(x)
@@ -45,9 +47,11 @@ struct sh1107_data {
     struct i2c_client *client;
 
     struct device_attribute * text;
+    struct device_attribute * cursor;
 
     uint8_t line_num;
     uint8_t cursor_pos;
+    bool invert;
 };
 
 static ssize_t i2c_write(struct i2c_client *client, const uint8_t * const buf, const uint32_t len)
@@ -313,6 +317,19 @@ static int sh1107_set_cursor(struct i2c_client *client, uint16_t line_num, uint1
     return rc;
 }
 
+static int sh1107_invert_font(struct i2c_client *client, bool invert)
+{
+    struct sh1107_data *sh1107 = i2c_get_clientdata(client);
+    int rc = -EINVAL;
+
+    if (sh1107 != NULL) {
+        rc = 0;
+        sh1107->invert = invert;
+    }
+    
+    return rc;
+}
+
 static int sh1107_set_data(struct i2c_client *client, uint8_t data)
 {
     uint8_t buf[2] = {0x00};
@@ -455,6 +472,9 @@ static void sh1107_print_char(struct i2c_client *client, unsigned char c) {
         c -= 0x20;
         do {
             data_byte = sh110x_12x8[c][col_i];
+            if (sh1107->invert) {
+                data_byte = ~data_byte;
+            }
             sh1107_set_data(client, data_byte);
 
             col_i++;
@@ -489,7 +509,68 @@ static ssize_t store_text(struct device *dev, struct device_attribute *attr,
     return sh1107_write_text(dev, buf, count);
 }
 
+static int update_cursor_from_string(struct i2c_client *client, const char * const buf, size_t count)
+{
+    if (client == NULL || buf == NULL || count < 3 || count > 8) {
+        return -EINVAL;
+    }
+
+    size_t i = 0;
+    uint16_t line = 0, column = 0;
+    unsigned long v = 0;
+
+    for (i = 0; i < count; i++) {
+        if (buf[i] == ' ') {
+            break;
+        }
+    }
+
+    if (i >= count) {
+        return -EINVAL;
+    }
+
+    v = strtoul(buf, NULL, 10);
+    line = min(v, (unsigned long) DISPLAY_PAGE_MAX);
+    v = strtoul(&buf[i+1], NULL, 10);
+    column = min(v, (unsigned long) DISPLAY_MAX_LINES);
+
+    return sh1107_set_cursor(client, column, line);
+}
+
+static ssize_t store_cursor(struct device *dev, struct device_attribute *attr,
+                        const char *buf, size_t count)
+{
+    struct sh1107_data *sh1107;
+    int rc = 0;
+
+    sh1107 = dev_get_drvdata(dev);
+    if (count > 0) {
+        char c = buf[0];
+        switch(c) {
+            case 'r':
+                rc = sh1107_set_cursor(sh1107->client, 0,0);
+                break;
+            case 'i':
+                rc = sh1107_invert_font(sh1107->client, true);
+                break;
+            case 'n':
+                rc = sh1107_invert_font(sh1107->client, false);
+                break;
+            default:
+                rc = update_cursor_from_string(sh1107->client, buf, count);
+                break;
+        }
+    }
+
+    if (rc != 0) {
+        return rc;
+    }
+
+    return count;
+}
+
 static DEVICE_ATTR(text, S_IWUSR, NULL, store_text);
+static DEVICE_ATTR(cursor, S_IWUSR, NULL, store_cursor);
 
 static int sh1107_probe(struct i2c_client *client) {
     struct sh1107_data * sh1107 = NULL;
@@ -520,6 +601,14 @@ static int sh1107_probe(struct i2c_client *client) {
     }
     sh1107->text = &dev_attr_text;
 
+    rc = device_create_file(&client->dev, &dev_attr_cursor);
+    if (rc != 0)
+    {
+        dev_info(&client->dev, "Failed to create \"cursor\" sysfs file (%d)", rc);
+        return rc;
+    }
+    sh1107->cursor = &dev_attr_cursor;
+
     dev_info(&client->dev, "Done initializing screen %s on bus %s", client->name, client->adapter->name);
     
     return rc;
@@ -528,6 +617,7 @@ static int sh1107_probe(struct i2c_client *client) {
 static void sh1107_remove(struct i2c_client *client)
 {
     device_remove_file(&client->dev, &dev_attr_text);
+    device_remove_file(&client->dev, &dev_attr_cursor);
 
     (void)sh1107_set_column_address(client, 0);
     (void)sh1107_set_page_address(client, 0);

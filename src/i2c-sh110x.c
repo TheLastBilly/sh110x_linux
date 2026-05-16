@@ -286,8 +286,8 @@ static int sh1107_set_cursor(struct i2c_client *client, uint16_t line_num, uint1
     struct sh1107_data *sh1107 = i2c_get_clientdata(client);
     int rc = -EINVAL;
 
-    if ((cursor_pos >= DISPLAY_PAGE_MAX) || (line_num >= DISPLAY_MAX_LINES)) {
-        dev_err(sh1107->dev, "Cursor out of bounds.");
+    if ((cursor_pos > DISPLAY_PAGE_MAX) || (line_num > DISPLAY_MAX_LINES)) {
+        dev_err(sh1107->dev, "Cursor (%d, %d) out of bounds.", cursor_pos, line_num);
         return rc;
     }
 

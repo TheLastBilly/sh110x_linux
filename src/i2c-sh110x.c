@@ -1,6 +1,7 @@
 #include <linux/module.h>
 #include <linux/i2c.h>
 #include <linux/delay.h>
+#include <linux/mutex.h>
 #include <linux/kernel.h>
 #include <linux/sysfs.h>
 #include <linux/of_device.h>
@@ -45,6 +46,7 @@
 struct sh1107_data {
     struct device *dev;
     struct i2c_client *client;
+    struct mutex client_mutex;
 
     struct device_attribute * text;
     struct device_attribute * cursor;
@@ -54,30 +56,17 @@ struct sh1107_data {
     bool invert;
 };
 
-static ssize_t i2c_write(struct i2c_client *client, const uint8_t * const buf, const uint32_t len)
-{
-    if (client == NULL || buf == NULL) {
-        return -EINVAL;
-    }
-
-    return i2c_master_send(client, buf, len);
-}
-
 static int i2c_command(struct i2c_client *client, const uint8_t cmd)
 {
-    uint8_t buf[2] = {0x00};
-
+    struct sh1107_data * sh1107 = i2c_get_clientdata(client);
+    int rc = 0;
     if (client == NULL) {
         return -EINVAL;
     }
 
-    buf[1] = cmd;
-    int rc = 0;
-    ssize_t s = 0;
-    s = i2c_master_send(client, buf, 2);
-    if (s != (sizeof(buf)/sizeof(buf[0]))) {
-        rc = -1;
-    }
+    mutex_lock(&sh1107->client_mutex);
+    rc = i2c_smbus_write_byte_data(client, 0x00, cmd);
+    mutex_unlock(&sh1107->client_mutex);
 
     return rc;
 }
@@ -96,7 +85,7 @@ static int i2c_command_arg(struct i2c_client *client, const uint8_t cmd, const u
         dev_info(&client->dev, "failed to send cmd (0x%02x): %d\n", cmd, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_column_address(struct i2c_client *client, uint8_t addr)
@@ -108,7 +97,7 @@ static int sh1107_set_column_address(struct i2c_client *client, uint8_t addr)
         dev_info(&client->dev, "failed to set column address to 0x%02x: %d\n", addr, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 
@@ -121,7 +110,7 @@ static int sh1107_set_addressing_mode(struct i2c_client *client, uint8_t mode)
         dev_info(&client->dev, "failed to set addressing mode to 0x%02x: %d\n", mode, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_contrast(struct i2c_client *client, uint8_t contrast)
@@ -133,7 +122,7 @@ static int sh1107_set_contrast(struct i2c_client *client, uint8_t contrast)
         dev_info(&client->dev, "failed to set contrast to 0x%02x: %d\n", contrast, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_adc(struct i2c_client *client, uint8_t adc)
@@ -145,7 +134,7 @@ static int sh1107_set_adc(struct i2c_client *client, uint8_t adc)
         dev_info(&client->dev, "failed to set adc to 0x%02x: %d\n", adc, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_multiplex_ration(struct i2c_client *client, uint8_t ration)
@@ -157,7 +146,7 @@ static int sh1107_set_multiplex_ration(struct i2c_client *client, uint8_t ration
         dev_info(&client->dev, "failed to set ration to 0x%02x: %d\n", ration, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_entire_display_on_off(struct i2c_client *client, bool on_off)
@@ -169,7 +158,7 @@ static int sh1107_set_entire_display_on_off(struct i2c_client *client, bool on_o
         dev_info(&client->dev, "failed to set entire display on/off to 0x%02x: %d\n", on_off, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_display_offset(struct i2c_client *client, uint8_t offset)
@@ -181,7 +170,7 @@ static int sh1107_set_display_offset(struct i2c_client *client, uint8_t offset)
         dev_info(&client->dev, "failed to set display offset to 0x%02x: %d\n", offset, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_dc_dc_control(struct i2c_client *client, uint8_t control)
@@ -193,7 +182,7 @@ static int sh1107_set_dc_dc_control(struct i2c_client *client, uint8_t control)
         dev_info(&client->dev, "failed to set DC DC control mode to 0x%02x: %d\n", control, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_display_on_off(struct i2c_client *client, bool on_off)
@@ -205,7 +194,7 @@ static int sh1107_set_display_on_off(struct i2c_client *client, bool on_off)
         dev_info(&client->dev, "failed to set display on/off to 0x%02x: %d\n", on_off, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_page_address(struct i2c_client *client, uint8_t address)
@@ -217,7 +206,7 @@ static int sh1107_set_page_address(struct i2c_client *client, uint8_t address)
         dev_info(&client->dev, "failed to set page address to 0x%02x: %d\n", address, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_output_scan_direction(struct i2c_client *client, uint8_t dir)
@@ -229,7 +218,7 @@ static int sh1107_set_output_scan_direction(struct i2c_client *client, uint8_t d
         dev_info(&client->dev, "failed to set common output directory to 0x%02x: %d\n", dir, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_frequency_divide(struct i2c_client *client, uint8_t freq, uint8_t div)
@@ -241,7 +230,7 @@ static int sh1107_set_frequency_divide(struct i2c_client *client, uint8_t freq, 
         dev_info(&client->dev, "failed to set frequency divide to 0x%02x and 0x%02x: %d\n", freq, div, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_charge_duration(struct i2c_client *client, uint8_t dis, uint8_t pre)
@@ -253,7 +242,7 @@ static int sh1107_set_charge_duration(struct i2c_client *client, uint8_t dis, ui
         dev_info(&client->dev, "failed to set dis and pre charge to 0x%02x and 0x%02x: %d\n", dis, pre, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_vcom(struct i2c_client *client, uint8_t vcom)
@@ -265,7 +254,7 @@ static int sh1107_set_vcom(struct i2c_client *client, uint8_t vcom)
         dev_info(&client->dev, "failed to set vcom to 0x%02x: %d\n", vcom, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_normal_reverse(struct i2c_client *client, uint8_t mode)
@@ -277,7 +266,7 @@ static int sh1107_set_normal_reverse(struct i2c_client *client, uint8_t mode)
         dev_info(&client->dev, "failed to set normal/reverse to 0x%02x: %d\n", mode, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_address_start_line(struct i2c_client *client, uint8_t line)
@@ -289,7 +278,7 @@ static int sh1107_set_address_start_line(struct i2c_client *client, uint8_t line
         dev_info(&client->dev, "failed to set display start line to 0x%02x: %d\n", line, rc);
     }
 
-    return 0;
+    return rc;
 }
 
 static int sh1107_set_cursor(struct i2c_client *client, uint16_t line_num, uint16_t cursor_pos)
@@ -332,20 +321,16 @@ static int sh1107_invert_font(struct i2c_client *client, bool invert)
 
 static int sh1107_set_data(struct i2c_client *client, uint8_t data)
 {
-    uint8_t buf[2] = {0x00};
+    struct sh1107_data * sh1107 = i2c_get_clientdata(client);
+    int rc = 0;
 
     if (client == NULL) {
         return -EINVAL;
     }
 
-    buf[0] = 0x40;
-    buf[1] = data;
-    int rc = 0;
-    ssize_t s = 0;
-    s = i2c_master_send(client, buf, 2);
-    if (s != (sizeof(buf)/sizeof(buf[0]))) {
-        rc = -1;
-    }
+    mutex_lock(&sh1107->client_mutex);
+    rc = i2c_smbus_write_byte_data(client, 0x40, data);
+    mutex_unlock(&sh1107->client_mutex);
 
     return rc;
 }
@@ -380,7 +365,7 @@ static int init_display(struct i2c_client *client)
         return -EINVAL;
     }
 
-    ssize_t rc = 0;
+    int rc = 0;
     do {
         rc = sh1107_set_display_on_off(client, false);
         if (rc != 0) {
@@ -585,6 +570,7 @@ static int sh1107_probe(struct i2c_client *client) {
     sh1107->line_num = 0;
     sh1107->cursor_pos = 0;
     sh1107->client = client;
+    mutex_init(&sh1107->client_mutex);
     i2c_set_clientdata(client, sh1107);
 
     rc = init_display(client);
